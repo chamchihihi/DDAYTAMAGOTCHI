@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>전역 다마고치</title>
+<!-- 한글 픽셀 폰트 (인터넷이 없으면 monospace로 자동 대체) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri/dist/galmuri.css">
+<style>
+  :root {
+    --shell: #f0862e;
+    --shell-light: #ffb468;
+    --shell-dark: #b5571a;
+    --bezel: #2f3524;
+    --lcd: #a7b58c;
+    --ink: #2b3320;
+    --bubble: #d6dfc0;
+    --btn: #e8d9a8;
+    --btn-light: #fff8e0;
+    --btn-dark: #b9a874;
+    --btn-shadow: #6f6440;
+    --bg: #f3eedf;
+    --font: 'Galmuri11', 'Galmuri9', 'DungGeunMo', 'Courier New', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    font-family: var(--font);
+    -webkit-font-smoothing: none;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    user-select: none;
+  }
+
+  /* ===== 기기 외관 (달걀 모양) ===== */
+  .device {
+    position: relative;
+    width: 320px;
+    padding: 46px 26px 30px;
+    background:
+      radial-gradient(circle at 30% 18%, rgba(255,255,255,.35) 0 14%, transparent 15%),
+      radial-gradient(circle at 50% 40%, var(--shell-light), var(--shell) 60%, var(--shell-dark));
+    border-radius: 50% 50% 46% 46% / 42% 42% 58% 58%;
+    box-shadow:
+      inset -8px -12px 0 rgba(0,0,0,.18),
+      inset 8px 8px 0 rgba(255,255,255,.18),
+      0 10px 0 var(--shell-dark),
+      0 18px 30px rgba(0,0,0,.25);
+    transform-origin: center;
+  }
+  .device::before {          /* 키링 고리 */
+    content: '';
+    position: absolute;
+    top: -22px; left: 50%;
+    width: 34px; height: 34px;
+    transform: translateX(-50%);
+    border: 7px solid #c9c2a8;
+    border-radius: 50%;
+    z-index: -1;
+  }
+  /* ===== 기기 모양 ===== */
+  .device.shape-round {          /* 동글이 */
+    width: 360px;
+    padding: 56px 46px 50px;
+    border-radius: 50%;
+  }
+  .device.shape-square {         /* 네모 게임기 */
+    padding: 30px 22px 28px;
+    border-radius: 26px 26px 26px 70px;
+  }
+  .device.shape-square::before { display: none; }
+
+  /* 픽셀 모양: 모서리를 계단처럼 깎음 (--p = 계단 한 칸 크기) */
+  .pix {
+    clip-path: polygon(
+      0 calc(var(--p)*3), var(--p) calc(var(--p)*3), var(--p) calc(var(--p)*2), calc(var(--p)*2) calc(var(--p)*2),
+      calc(var(--p)*2) var(--p), calc(var(--p)*3) var(--p), calc(var(--p)*3) 0,
+      calc(100% - var(--p)*3) 0, calc(100% - var(--p)*3) var(--p), calc(100% - var(--p)*2) var(--p),
+      calc(100% - var(--p)*2) calc(var(--p)*2), calc(100% - var(--p)) calc(var(--p)*2), calc(100% - var(--p)) calc(var(--p)*3), 100% calc(var(--p)*3),
+      100% calc(100% - var(--p)*3), calc(100% - var(--p)) calc(100% - var(--p)*3), calc(100% - var(--p)) calc(100% - var(--p)*2),
+      calc(100% - var(--p)*2) calc(100% - var(--p)*2), calc(100% - var(--p)*2) calc(100% - var(--p)), calc(100% - var(--p)*3) calc(100% - var(--p)), calc(100% - var(--p)*3) 100%,
+      calc(var(--p)*3) 100%, calc(var(--p)*3) calc(100% - var(--p)), calc(var(--p)*2) calc(100% - var(--p)),
+      calc(var(--p)*2) calc(100% - var(--p)*2), var(--p) calc(100% - var(--p)*2), var(--p) calc(100% - var(--p)*3), 0 calc(100% - var(--p)*3)
+    );
+  }
+  .device.shape-pixel {
+    --p: 12px;
+    padding: 34px 26px 30px;
+    border-radius: 0;
+    background: var(--shell);
+    box-shadow: inset -8px -10px 0 rgba(0,0,0,.18), inset 8px 8px 0 rgba(255,255,255,.2);
+  }
+  .device.shape-pixel::before { display: none; }
+  .wrap.pixel {               /* 계단 모양을 따라 그림자 */
+    filter: drop-shadow(0 8px 0 var(--shell-dark)) drop-shadow(0 14px 12px rgba(0,0,0,.2));
+  }
+  .shape-pixel .bezel { --p: 6px; border-radius: 0; }
+  .shape-pixel .lcd { border-radius: 0; }
+  .shape-pixel .btn { filter: drop-shadow(0 4px 0 var(--btn-shadow)); }
+  .shape-pixel .btn .cap { --p: 5px; border-radius: 0; box-shadow: none; background: var(--btn); }
+  .shape-pixel .btn:active .cap { transform: translateY(3px); box-shadow: none; }
+
+  .shapes { display: flex; gap: 6px; flex-wrap: wrap; }
+  .shapes button {
+    padding: 5px 9px;
+    border: 2px solid #ccc;
+    border-radius: 14px;
+    background: #fff;
+    font: inherit;
+    cursor: pointer;
+  }
+  .shapes button.on { border-color: #333; background: #fff3e6; }
+
+  .brand {
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: #fffaf0;
+    text-shadow: 1px 1px 0 var(--shell-dark);
+    margin-bottom: 8px;
+    min-height: 13px;
+  }
+
+  /* ===== 액정 ===== */
+  .bezel {
+    background: var(--bezel);
+    padding: 12px;
+    border-radius: 22px;
+    box-shadow: inset 0 4px 0 rgba(0,0,0,.4), 0 2px 0 rgba(255,255,255,.2);
+  }
+  .lcd {
+    position: relative;
+    height: 230px;
+    background: var(--lcd);
+    border-radius: 8px;
+    overflow: hidden;
+    color: var(--ink);
+    box-shadow: inset 0 0 18px rgba(0,0,0,.25);
+  }
+  .lcd::after {              /* LCD 픽셀 격자 */
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,0,0,.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,0,0,.06) 1px, transparent 1px);
+    background-size: 3px 3px;
+    pointer-events: none;
+  }
+  body.no-grid .lcd::after { display: none; }
+
+  .dday {
+    text-align: center;
+    padding-top: 10px;
+    font-size: 34px;
+    line-height: 1;
+    letter-spacing: 2px;
+    text-shadow: 2px 2px 0 rgba(0,0,0,.12);
+  }
+  .sub { text-align: center; font-size: 10px; margin-top: 4px; opacity: .8; min-height: 12px; }
+
+  /* ===== 캐릭터 ===== */
+  .stage {
+    position: absolute;
+    left: 0; right: 0; bottom: 14px;
+    display: flex;
+    justify-content: center;
+  }
+  .chara {
+    width: 96px; height: 96px;
+    image-rendering: pixelated;
+    mix-blend-mode: multiply;
+    cursor: pointer;
+    animation: bob 1s steps(2) infinite;
+  }
+  body.no-bob .chara { animation: none; }
+  .chara.jump { animation: jump .35s steps(3) !important; }
+  @keyframes bob { 50% { transform: translateY(-3px); } }
+  @keyframes jump { 50% { transform: translateY(-12px); } }
+
+  /* ===== 도트 말풍선 ===== */
+  .bubble {
+    position: absolute;
+    left: 50%;
+    bottom: 118px;
+    transform: translateX(-50%) scale(0);
+    transform-origin: 50% 100%;
+    width: 230px;
+    padding: 7px 9px;
+    background: var(--bubble);
+    font-size: 11px;
+    line-height: 1.45;
+    text-align: center;
+    word-break: keep-all;
+    box-shadow:
+      0 -3px 0 0 var(--ink), 0 3px 0 0 var(--ink),
+      -3px 0 0 0 var(--ink), 3px 0 0 0 var(--ink);
+    transition: transform .12s steps(3);
+    z-index: 2;
+  }
+  .bubble.show { transform: translateX(-50%) scale(1); }
+  .bubble::after {
+    content: '';
+    position: absolute;
+    left: 50%; bottom: -9px;
+    width: 6px; height: 6px;
+    margin-left: -3px;
+    background: var(--ink);
+    box-shadow: 0 -3px 0 var(--bubble), 3px 3px 0 var(--ink);
+  }
+
+  /* ===== 하단 물리 버튼 ===== */
+  .buttons {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px 8px;
+    margin-top: 18px;
+    padding: 0 4px;
+  }
+  .btn {
+    grid-column: span 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    text-decoration: none;
+    color: #fffaf0;
+    font-size: 10px;
+    text-shadow: 1px 1px 0 var(--shell-dark);
+  }
+  .btn:nth-child(4) { grid-column: 2 / span 2; }
+  .btn:nth-child(5) { grid-column: 4 / span 2; }
+  .btn .cap {
+    width: 42px; height: 42px;
+    display: grid;
+    place-items: center;
+    font-size: 19px;
+    background: radial-gradient(circle at 35% 30%, var(--btn-light), var(--btn) 55%, var(--btn-dark));
+    border-radius: 50%;
+    box-shadow: 0 4px 0 var(--btn-shadow), 0 6px 6px rgba(0,0,0,.25);
+    transition: transform .06s, box-shadow .06s;
+  }
+  .btn:hover .cap { filter: brightness(1.06); }
+  .btn:active .cap {
+    transform: translateY(4px);
+    box-shadow: 0 0 0 var(--btn-shadow), 0 2px 3px rgba(0,0,0,.25);
+  }
+  .btn .label { white-space: nowrap; }
+
+  /* ===== 설정(커스텀) ===== */
+  .gear {
+    position: fixed;
+    right: 14px; bottom: 14px;
+    width: 38px; height: 38px;
+    border: none;
+    border-radius: 50%;
+    background: #fff;
+    font-size: 18px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,.2);
+    z-index: 11;
+  }
+  .panel {
+    position: fixed;
+    top: 0; right: 0;
+    width: min(330px, 100vw);
+    height: 100%;
+    overflow-y: auto;
+    background: #fffdf6;
+    color: #333;
+    padding: 18px 16px 70px;
+    font-size: 12px;
+    box-shadow: -4px 0 20px rgba(0,0,0,.15);
+    transform: translateX(105%);
+    transition: transform .2s;
+    z-index: 10;
+    user-select: text;
+  }
+  .panel.open { transform: none; }
+  .panel h2 { font-size: 15px; margin-bottom: 12px; }
+  .panel h3 {
+    font-size: 12px;
+    margin: 16px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 2px dashed #ddd;
+  }
+  .row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .row > span { min-width: 64px; }
+  .panel input[type=text], .panel input[type=date], .panel input[type=url] {
+    flex: 1;
+    min-width: 0;
+    padding: 5px 7px;
+    border: 2px solid #ccc;
+    border-radius: 6px;
+    font: inherit;
+  }
+  .panel input[type=color] { width: 34px; height: 26px; border: none; background: none; cursor: pointer; }
+  .panel input[type=range] { flex: 1; }
+  .swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+  .swatches button {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px rgba(0,0,0,.25);
+    cursor: pointer;
+  }
+  .emoji-in { flex: 0 0 42px !important; text-align: center; }
+  .panel .reset {
+    margin-top: 18px;
+    width: 100%;
+    padding: 8px;
+    border: 2px solid #e2a0a0;
+    background: #fff4f4;
+    color: #a33;
+    border-radius: 8px;
+    font: inherit;
+    cursor: pointer;
+  }
+  .hint { color: #888; font-size: 10px; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<div class="wrap" id="wrap">
+<div class="device" id="device">
+  <div class="brand" id="brand"></div>
+
+  <div class="bezel">
+    <div class="lcd">
+      <div class="dday" id="dday">D-??</div>
+      <div class="sub" id="sub"></div>
+
+      <div class="bubble" id="bubble"></div>
+
+      <div class="stage">
+        <img class="chara" id="chara" alt="군인 캐릭터" draggable="false"
+             src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAADkElEQVR4AeycMYsUQRCFa80ORUQ0EBc1MjmMBAMDA8HIwJ94IuifEAwMRRPND0TlEEQ8PENvrwuOZfameqZ7umvezO475rG71dVV3e+joWGPvST8gzpAAFD7RQiAAMAOgNvzBBAA2AFwe54AAgA7AG7PE0AAYAfA7XfzBIBNb7YngKYbgPejArj96O7K0v0X+6scWTW6Yjm1NXdMDqMCGHNjc+lFAGBSBEAAYAfA7XkCthFA7EZSa6+Xb10RS7H6/45OxFIsX29ClmL5JXGegBL3KswlgAomlpQYEUDJMrd3LgGA2RLAnAHUuu1YNxSN5Xpj3Yw0FqujPXJk3Yw0FqufEucJSHHJMYcAHM1NKU0AKS455hCAo7kppQkgxSXHnCIAJ7/+iqd+fjmSGqq1xthaSvgUAShpvCtz+/ZJAH0OOY8TgLPBfeUJoM8h53ECcDa4r3wRgOPD3wtLV+W/WHp+bym19ef9W7FU0sdau8asvWqsz+Su8SIAXYU5luYAAaT55JZFAG7WphUmgDSf3LIIwM3atMKlAFahjaUQbj+vXx2IpTfvPoslK/dirN1FREKwmWfV1lgzp/k+TI891l41FsvvjZcC6G3AhG4HCKDbH/dRAnC3uLsBAXT74z5KAO4WdzeYBIDV909iqXvp6aNWbY2lV/DLnAQAv+1NvzIBgBkRAAGAHQC3r3gCwDuZaXsCAIMjAAIAOwBuX3oCFmH9LX07PBZLd548lTnIWrvGrL2ex8LLsKcUwLCunLV2gADWVmDeEADG93VXAlhbgXlDABjf1129ALRuRqHjQm8Slk5vXJMc7T1YSg1Za9GYrjWiEN58Sj95AShd187MJwAwagIgALAD4PY8AVsKQP9dryX9ItxSzAP9oQ1LsfycH97QXGstGgv1W2s/j4WXug9PQF0/s6sRQLZldScQQF0/s6sRQLZldSfME0BdD6DVRgWwWD4US9ZNR2MxZ/QGYymWH4tba9FYLN8jPioAjw3MvSYBgAkSAAGAHQC35wnYUgDmN2KxvT6+vic5+vHhq1h6tn9TchRbT4hnrT/kD354AgZbV2ciAdTxcXAVAhhsXZ2JGQDqNGSVTQcIYNOP0T9NAsDLg4+So+CSeUvJqaG5oQ78mQQAuAvABRAA0HxtTQDqAlAEADRfWxOAugDU2ADM20vYf248TDGf3DqxfLO4R3BsAB57mHVNAujB5z18BgAA///jrdVoAAAABklEQVQDAPIbQu4PgxsrAAAAAElFTkSuQmCC">
+      </div>
+    </div>
+  </div>
+
+  <nav class="buttons" id="buttons"></nav>
+</div>
+</div>
+
+<!-- ===== 설정 버튼 & 패널 ===== -->
+<button class="gear" id="gear" title="꾸미기">⚙️</button>
+
+<aside class="panel" id="panel">
+  <h2>🎨 다마고치 꾸미기</h2>
+  <p class="hint">바꾼 내용은 자동 저장돼서 다음에 열어도 그대로예요.</p>
+
+  <h3>기기 모양</h3>
+  <div class="row"><div class="shapes" id="shapes"></div></div>
+
+  <h3>기기 색</h3>
+  <div class="row"><div class="swatches" id="shellSwatches"></div></div>
+  <div class="row"><span>직접 고르기</span><input type="color" id="shellColor"></div>
+
+  <h3>액정 색</h3>
+  <div class="row"><div class="swatches" id="lcdSwatches"></div></div>
+  <div class="row"><span>직접 고르기</span><input type="color" id="lcdColor"></div>
+  <div class="row"><span>글씨 색</span><input type="color" id="inkColor"></div>
+  <div class="row"><label><input type="checkbox" id="grid"> 픽셀 격자 보이기</label></div>
+
+  <h3>버튼 · 배경</h3>
+  <div class="row"><span>버튼 색</span><input type="color" id="btnColor"></div>
+  <div class="row"><span>바탕 색</span><input type="color" id="bgColor"></div>
+
+  <h3>문구</h3>
+  <div class="row"><span>로고</span><input type="text" id="brandText" maxlength="24"></div>
+  <div class="row"><span>아래 문구</span><input type="text" id="subText" maxlength="30"></div>
+  <div class="row"><span>전역일</span><input type="date" id="targetDate"></div>
+
+  <h3>말풍선 대사</h3>
+  <div class="row"><input type="text" id="line0"></div>
+  <div class="row"><input type="text" id="line1"></div>
+  <div class="row"><input type="text" id="line2"></div>
+  <div class="row"><label><input type="checkbox" id="randomLines"> 랜덤 순서로 보여주기</label></div>
+
+  <h3>버튼 링크</h3>
+  <p class="hint" style="margin-bottom:8px">이모지 / 이름 / 링크 주소 순서예요. 주소를 비워두면 아무 데도 안 가요.</p>
+  <div id="linkEditors"></div>
+
+  <h3>기타</h3>
+  <div class="row"><span>크기</span><input type="range" id="scale" min="0.6" max="1.4" step="0.05"><b id="scaleVal"></b></div>
+  <div class="row"><label><input type="checkbox" id="bob"> 캐릭터 통통 움직이기</label></div>
+
+  <button class="reset" id="reset">처음 상태로 되돌리기</button>
+</aside>
+
+<script>
+  // ===================== 기본 설정 =====================
+  const DEFAULTS = {
+    shape: 'pixel',
+    shell: '#f0862e',
+    lcd: '#a7b58c',
+    ink: '#2b3320',
+    btn: '#e8d9a8',
+    bg: '#f3eedf',
+    grid: true,
+    brand: '★ NOVANA-GOTCHI ★',
+    sub: '2027.01.27 전역',
+    target: '2027-01-27',
+    lines: [
+      '시율이, 사클 100회 스트리밍 정말 고마워요! 🥹',
+      '이거슨 어마어마한 감동. 🪖',
+      '새벽을 가른 붉은 날개에~ 🚀'
+    ],
+    random: false,
+    links: [
+      { emoji: '📺', name: '히-로',       url: '' },
+      { emoji: '🎧', name: '프로펠러',    url: '' },
+      { emoji: '🌌', name: '노바나 사클', url: '' },
+      { emoji: '📹', name: '공식 유튜브', url: '' },
+      { emoji: '📸', name: '공식 인스타', url: '' }
+    ],
+    scale: 1,
+    bob: true
+  };
+  const SHAPES = { pixel: '👾 픽셀', round: '⚪ 동글이', square: '🎮 네모 게임기' };
+  const SHELL_PRESETS = ['#f0862e', '#7d8b5a', '#ef8fb1', '#5fc2a4', '#5ea8e6', '#9a7ad6', '#e9c440', '#e05252', '#f2efe6', '#3d3d48'];
+  const LCD_PRESETS   = ['#a7b58c', '#9bbc0f', '#b8b8a8', '#c4cfa1', '#a9c6c9', '#d8c8a8'];
+
+  const KEY = 'gotchi-settings-v1';
+  let S;
+  try { S = Object.assign(structuredClone(DEFAULTS), JSON.parse(localStorage.getItem(KEY) || '{}')); }
+  catch (e) { S = structuredClone(DEFAULTS); }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+  // ===================== 색 계산 도우미 =====================
+  function shade(hex, amt) { // amt: -1(검정)~1(흰색)
+    const n = parseInt(hex.slice(1), 16);
+    let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+    const t = amt < 0 ? 0 : 255, p = Math.abs(amt);
+    r = Math.round((t - r) * p + r); g = Math.round((t - g) * p + g); b = Math.round((t - b) * p + b);
+    return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
+  }
+
+  // ===================== 화면에 적용 =====================
+  const $ = id => document.getElementById(id);
+  const root = document.documentElement.style;
+
+  function apply() {
+    root.setProperty('--shell', S.shell);
+    root.setProperty('--shell-light', shade(S.shell, .35));
+    root.setProperty('--shell-dark', shade(S.shell, -.3));
+    root.setProperty('--lcd', S.lcd);
+    root.setProperty('--bubble', shade(S.lcd, .3));
+    root.setProperty('--ink', S.ink);
+    root.setProperty('--btn', S.btn);
+    root.setProperty('--btn-light', shade(S.btn, .6));
+    root.setProperty('--btn-dark', shade(S.btn, -.2));
+    root.setProperty('--btn-shadow', shade(S.btn, -.5));
+    root.setProperty('--bg', S.bg);
+    document.body.classList.toggle('no-grid', !S.grid);
+    document.body.classList.toggle('no-bob', !S.bob);
+    if (!SHAPES[S.shape]) S.shape = 'pixel';   // 없어진 모양이 저장돼 있으면 픽셀로
+    const isPix = S.shape === 'pixel';
+    $('device').className = 'device shape-' + S.shape + (isPix ? ' pix' : '');
+    $('wrap').classList.toggle('pixel', isPix);
+    document.querySelector('.bezel').classList.toggle('pix', isPix);
+    [...$('shapes').children].forEach(b => b.classList.toggle('on', b.dataset.shape === S.shape));
+    $('device').style.transform = `scale(${S.scale})`;
+    $('brand').textContent = S.brand;
+    $('sub').textContent = S.sub;
+
+    const nav = $('buttons');
+    nav.innerHTML = '';
+    S.links.forEach(l => {
+      const a = document.createElement('a');
+      a.className = 'btn';
+      a.href = l.url.trim() || '#';
+      if (l.url.trim()) { a.target = '_blank'; a.rel = 'noopener'; }
+      a.innerHTML = '<span class="cap' + (isPix ? ' pix' : '') + '"></span><span class="label"></span>';
+      a.querySelector('.cap').textContent = l.emoji;
+      a.querySelector('.label').textContent = l.name;
+      nav.appendChild(a);
+    });
+    updateDday();
+  }
+
+  // ===================== 전역 D-DAY =====================
+  function updateDday() {
+    const [y, m, d] = S.target.split('-').map(Number);
+    const target = new Date(y, m - 1, d);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diff = Math.round((target - today) / 86400000);
+    $('dday').textContent = diff > 0 ? 'D-' + diff : diff === 0 ? 'D-DAY' : 'D+' + (-diff);
+  }
+  setInterval(updateDday, 60 * 1000);
+
+  // ===================== 캐릭터 터치 & 말풍선 =====================
+  let idx = 0, hideTimer;
+  const bubble = $('bubble'), chara = $('chara');
+  chara.addEventListener('click', () => {
+    const lines = S.lines.filter(t => t.trim());
+    if (!lines.length) return;
+    let pick;
+    if (S.random && lines.length > 1) {
+      do { pick = Math.floor(Math.random() * lines.length); } while (pick === idx);
+      idx = pick;
+    } else {
+      idx = (idx + 1) % lines.length;
+      pick = idx;
+    }
+    bubble.textContent = lines[pick];
+    bubble.classList.remove('show'); void bubble.offsetWidth; bubble.classList.add('show');
+    chara.classList.remove('jump'); void chara.offsetWidth; chara.classList.add('jump');
+    chara.addEventListener('animationend', () => chara.classList.remove('jump'), { once: true });
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => bubble.classList.remove('show'), 3500);
+  });
+  idx = -1;
+
+  // ===================== 설정 패널 =====================
+  $('gear').onclick = () => $('panel').classList.toggle('open');
+
+  function swatches(boxId, list, key, inputId) {
+    const box = $(boxId);
+    list.forEach(c => {
+      const b = document.createElement('button');
+      b.style.background = c;
+      b.title = c;
+      b.onclick = () => { S[key] = c; $(inputId).value = c; apply(); save(); };
+      box.appendChild(b);
+    });
+  }
+  Object.entries(SHAPES).forEach(([key, label]) => {
+    const b = document.createElement('button');
+    b.dataset.shape = key;
+    b.textContent = label;
+    b.onclick = () => { S.shape = key; apply(); save(); };
+    $('shapes').appendChild(b);
+  });
+
+  swatches('shellSwatches', SHELL_PRESETS, 'shell', 'shellColor');
+  swatches('lcdSwatches', LCD_PRESETS, 'lcd', 'lcdColor');
+
+  function bind(id, key, prop = 'value') {
+    const el = $(id);
+    el[prop] = S[key];
+    el.addEventListener('input', () => {
+      S[key] = prop === 'checked' ? el.checked : el.type === 'range' ? +el.value : el.value;
+      apply(); save(); fillScale();
+    });
+  }
+  bind('shellColor', 'shell'); bind('lcdColor', 'lcd'); bind('inkColor', 'ink');
+  bind('btnColor', 'btn'); bind('bgColor', 'bg');
+  bind('grid', 'grid', 'checked'); bind('bob', 'bob', 'checked'); bind('randomLines', 'random', 'checked');
+  bind('brandText', 'brand'); bind('subText', 'sub'); bind('targetDate', 'target');
+  bind('scale', 'scale');
+  function fillScale() { $('scaleVal').textContent = Math.round(S.scale * 100) + '%'; }
+  fillScale();
+
+  [0, 1, 2].forEach(i => {
+    const el = $('line' + i);
+    el.value = S.lines[i] || '';
+    el.placeholder = '대사 ' + (i + 1);
+    el.addEventListener('input', () => { S.lines[i] = el.value; save(); });
+  });
+
+  const le = $('linkEditors');
+  S.links.forEach((l, i) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = '<input type="text" class="emoji-in"><input type="text" style="flex:0 0 90px"><input type="url" placeholder="https://...">';
+    const [e, n, u] = row.querySelectorAll('input');
+    e.value = l.emoji; n.value = l.name; u.value = l.url;
+    e.oninput = () => { S.links[i].emoji = e.value; apply(); save(); };
+    n.oninput = () => { S.links[i].name = n.value; apply(); save(); };
+    u.oninput = () => { S.links[i].url = u.value; apply(); save(); };
+    le.appendChild(row);
+  });
+
+  $('reset').onclick = () => {
+    if (!confirm('꾸민 내용을 모두 처음 상태로 되돌릴까요?')) return;
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    location.reload();
+  };
+
+  apply();
+</script>
+</body>
+</html>
